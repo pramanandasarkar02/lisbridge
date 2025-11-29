@@ -405,7 +405,7 @@ export default function DevicesDashboard() {
                   ) : (
                     <div className="bg-gray-50 rounded-lg p-4">
                       <ResponsiveContainer width="100%" height={250}>
-                        <LineChart data={testResults.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())}>
+                        <LineChart data={[...testResults].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())}>
                           <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                           <XAxis 
                             dataKey="timestamp" 
