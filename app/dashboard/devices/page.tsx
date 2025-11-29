@@ -1,4 +1,3 @@
-// app/dashboard/devices/page.tsx
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -15,6 +14,18 @@ import {
   Clock,
   Loader2,
 } from 'lucide-react';
+
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+  ReferenceLine,
+} from 'recharts';
 
 // Types
 type DeviceStatus = 'online' | 'offline';
@@ -67,6 +78,15 @@ export default function DevicesDashboard() {
     resolver: zodResolver(deviceSchema),
   });
 
+  // Apply filter whenever devices or filterStatus changes
+  useEffect(() => {
+    if (filterStatus === 'all') {
+      setFilteredDevices(devices);
+    } else {
+      setFilteredDevices(devices.filter(device => device.status === filterStatus));
+    }
+  }, [devices, filterStatus]);
+
   // Fetch devices
   const fetchDevices = async () => {
     setIsLoading(true);
@@ -74,7 +94,6 @@ export default function DevicesDashboard() {
       const res = await fetch(`/api/devices${filterStatus !== 'all' ? `?status=${filterStatus}` : ''}`);
       const data = await res.json();
       setDevices(data);
-      setFilteredDevices(data);
     } catch (err) {
       setMessage({ type: 'error', text: 'Failed to load devices' });
     } finally {
@@ -84,7 +103,7 @@ export default function DevicesDashboard() {
 
   useEffect(() => {
     fetchDevices();
-  }, [filterStatus]);
+  }, []);
 
   // Load test results when device selected
   const loadTestResults = async (device: Device) => {
@@ -109,10 +128,14 @@ export default function DevicesDashboard() {
 
       if (res.ok) {
         const newDevice = await res.json();
+        // Add new device to the devices array
         setDevices(prev => [...prev, newDevice]);
         reset();
         setShowAddForm(false);
         setMessage({ type: 'success', text: 'Device registered successfully!' });
+        
+        // Auto-dismiss success message after 3 seconds
+        setTimeout(() => setMessage(null), 3000);
       } else {
         const err = await res.json();
         setMessage({ type: 'error', text: err.error || 'Failed to register device' });
@@ -131,7 +154,18 @@ export default function DevicesDashboard() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status }),
       });
-      fetchDevices();
+      
+      // Update device in local state instead of refetching
+      setDevices(prev => 
+        prev.map(device => 
+          device.uuid === uuid ? { ...device, status } : device
+        )
+      );
+      
+      // Update selected device if it's the one being updated
+      if (selectedDevice?.uuid === uuid) {
+        setSelectedDevice(prev => prev ? { ...prev, status } : null);
+      }
     } catch (err) {
       setMessage({ type: 'error', text: 'Failed to update status' });
     }
@@ -143,7 +177,8 @@ export default function DevicesDashboard() {
         <div className="max-w-7xl mx-auto">
           {/* Header */}
           <div className="mb-8">
-            <h1 className="text-3xl font-bold text-gray-900">LISBridge </h1>
+            <h1 className="text-3xl font-bold text-gray-900">LISBridge Dashboard</h1>
+            <p className="text-gray-600 mt-1">Manage your laboratory devices and test results</p>
           </div>
 
           {/* Message */}
@@ -164,36 +199,36 @@ export default function DevicesDashboard() {
                 className={`px-4 py-2 rounded-lg font-medium transition ${
                   filterStatus === 'all'
                     ? 'bg-blue-600 text-white'
-                    : 'bg-white text-gray-700 border border-gray-300'
+                    : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
                 }`}
               >
-                All
+                All ({devices.length})
               </button>
               <button
                 onClick={() => setFilterStatus('online')}
                 className={`px-4 py-2 rounded-lg font-medium transition flex items-center gap-2 ${
                   filterStatus === 'online'
                     ? 'bg-green-600 text-white'
-                    : 'bg-white text-gray-700 border border-gray-300'
+                    : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
                 }`}
               >
-                <Activity size={16} /> Online
+                <Activity size={16} /> Online ({devices.filter(d => d.status === 'online').length})
               </button>
               <button
                 onClick={() => setFilterStatus('offline')}
                 className={`px-4 py-2 rounded-lg font-medium transition ${
                   filterStatus === 'offline'
                     ? 'bg-gray-600 text-white'
-                    : 'bg-white text-gray-700 border border-gray-300'
+                    : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
                 }`}
               >
-                Offline
+                Offline ({devices.filter(d => d.status === 'offline').length})
               </button>
             </div>
 
             <button
               onClick={() => setShowAddForm(true)}
-              className="bg-blue-600 text-white px-5 py-2 rounded-lg font-medium hover:bg-blue-700 transition flex items-center gap-2"
+              className="bg-blue-600 text-white px-5 py-2 rounded-lg font-medium hover:bg-blue-700 transition flex items-center gap-2 justify-center"
             >
               <Plus size={20} /> Add Device
             </button>
@@ -204,10 +239,15 @@ export default function DevicesDashboard() {
             <div className="flex justify-center py-20">
               <Loader2 className="animate-spin text-blue-600" size={48} />
             </div>
-          ) : devices.length === 0 ? (
+          ) : filteredDevices.length === 0 ? (
             <div className="text-center py-20 text-gray-500">
               <Search size={64} className="mx-auto mb-4 opacity-50" />
-              <p>No devices registered yet. Click "Add Device" to get started.</p>
+              <p className="text-lg font-medium mb-2">
+                {devices.length === 0 ? 'No devices registered yet' : 'No devices match this filter'}
+              </p>
+              <p className="text-sm">
+                {devices.length === 0 ? 'Click "Add Device" to get started.' : 'Try selecting a different filter.'}
+              </p>
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -242,7 +282,7 @@ export default function DevicesDashboard() {
                   </div>
 
                   <div className="text-sm text-gray-600 space-y-1">
-                    <p>ID: {device.deviceId}</p>
+                    <p className="font-mono">ID: {device.deviceId}</p>
                     <p>Registered: {format(new Date(device.registeredAt), 'MMM d, yyyy')}</p>
                   </div>
 
@@ -284,7 +324,7 @@ export default function DevicesDashboard() {
                   <label className="block text-sm font-medium text-gray-700 mb-1">Device Name</label>
                   <input
                     {...register('deviceName')}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     placeholder="Blood Analyzer Pro"
                   />
                   {errors.deviceName && <p className="text-red-500 text-sm mt-1">{errors.deviceName.message}</p>}
@@ -294,7 +334,7 @@ export default function DevicesDashboard() {
                   <label className="block text-sm font-medium text-gray-700 mb-1">Device Type</label>
                   <input
                     {...register('deviceType')}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     placeholder="analyzer"
                   />
                   {errors.deviceType && <p className="text-red-500 text-sm mt-1">{errors.deviceType.message}</p>}
@@ -304,7 +344,7 @@ export default function DevicesDashboard() {
                   <label className="block text-sm font-medium text-gray-700 mb-1">Initial Status</label>
                   <select
                     {...register('status')}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   >
                     <option value="online">Online</option>
                     <option value="offline">Offline</option>
@@ -315,7 +355,7 @@ export default function DevicesDashboard() {
                   <button
                     type="submit"
                     disabled={isSubmitting}
-                    className="flex-1 bg-blue-600 text-white py-3 rounded-lg font-medium hover:bg-blue-700 disabled:opacity-70 flex items-center justify-center gap-2"
+                    className="flex-1 bg-blue-600 text-white py-3 rounded-lg font-medium hover:bg-blue-700 disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                   >
                     {isSubmitting && <Loader2 className="animate-spin" size={20} />}
                     Register Device
@@ -337,7 +377,7 @@ export default function DevicesDashboard() {
           </div>
         )}
 
-        {/* Device Details Modal */}
+        {/* Device Details Modal with Chart */}
         {selectedDevice && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
@@ -349,60 +389,106 @@ export default function DevicesDashboard() {
                   </div>
                   <button
                     onClick={() => setSelectedDevice(null)}
-                    className="text-gray-400 hover:text-gray-600"
+                    className="text-gray-400 hover:text-gray-600 text-2xl leading-none"
                   >
                     ×
                   </button>
                 </div>
               </div>
 
-              <div className="p-6">
-                <h3 className="text-lg font-semibold mb-4">Recent Test Results</h3>
+              <div className="p-6 space-y-8">
+                {/* Chart Section */}
+                <div>
+                  <h3 className="text-lg font-semibold mb-4">Test Results Trend (Last 10)</h3>
+                  {testResults.length === 0 ? (
+                    <p className="text-gray-500 text-center py-8">No data to display</p>
+                  ) : (
+                    <div className="bg-gray-50 rounded-lg p-4">
+                      <ResponsiveContainer width="100%" height={250}>
+                        <LineChart data={testResults.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                          <XAxis 
+                            dataKey="timestamp" 
+                            tickFormatter={(ts) => format(new Date(ts), 'HH:mm')}
+                            fontSize={12}
+                          />
+                          <YAxis fontSize={12} />
+                          <Tooltip 
+                            contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px' }}
+                            labelFormatter={(ts) => format(new Date(ts), 'MMM d, HH:mm')}
+                          />
+                          <Legend />
+                          <Line 
+                            type="monotone" 
+                            dataKey="value" 
+                            stroke="#3b82f6" 
+                            strokeWidth={2}
+                            dot={{ fill: '#3b82f6', r: 4 }}
+                            activeDot={{ r: 6 }}
+                            name={`${testResults[0]?.testType || 'Value'} (${testResults[0]?.unit || ''})`}
+                          />
+                          {/* Optional: Status reference lines */}
+                          {testResults.some(r => r.status === 'abnormal') && (
+                            <ReferenceLine y={Math.max(...testResults.map(r => r.value)) * 0.8} stroke="red" strokeDasharray="5 5" />
+                          )}
+                        </LineChart>
+                      </ResponsiveContainer>
+                      <p className="text-xs text-gray-500 mt-2 text-center">
+                        Showing values over time. Red dashed line indicates potential abnormal threshold.
+                      </p>
+                    </div>
+                  )}
+                </div>
 
-                {testResults.length === 0 ? (
-                  <p className="text-gray-500 text-center py-8">No test results available</p>
-                ) : (
-                  <div className="overflow-x-auto">
-                    <table className="w-full">
-                      <thead>
-                        <tr className="border-b border-gray-200">
-                          <th className="text-left py-3 px-4 font-medium text-gray-700">Timestamp</th>
-                          <th className="text-left py-3 px-4 font-medium text-gray-700">Test Type</th>
-                          <th className="text-left py-3 px-4 font-medium text-gray-700">Value</th>
-                          <th className="text-left py-3 px-4 font-medium text-gray-700">Status</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {testResults.map((result, i) => (
-                          <tr key={i} className="border-b border-gray-100">
-                            <td className="py-3 px-4 text-sm">
-                              {format(new Date(result.timestamp), 'MMM d, HH:mm')}
-                            </td>
-                            <td className="py-3 px-4 font-medium">{result.testType}</td>
-                            <td className="py-3 px-4">
-                              {result.value} {result.unit}
-                            </td>
-                            <td className="py-3 px-4">
-                              <span
-                                className={`px-3 py-1 rounded-full text-xs font-medium ${
-                                  result.status === 'normal'
-                                    ? 'bg-green-100 text-green-800'
-                                    : 'bg-red-100 text-red-800'
-                                }`}
-                              >
-                                {result.status}
-                              </span>
-                            </td>
+                {/* Test Results Table */}
+                <div>
+                  <h3 className="text-lg font-semibold mb-4">Recent Test Results</h3>
+                  {testResults.length === 0 ? (
+                    <p className="text-gray-500 text-center py-8">No test results available</p>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full">
+                        <thead>
+                          <tr className="border-b border-gray-200">
+                            <th className="text-left py-3 px-4 font-medium text-gray-700">Timestamp</th>
+                            <th className="text-left py-3 px-4 font-medium text-gray-700">Test Type</th>
+                            <th className="text-left py-3 px-4 font-medium text-gray-700">Value</th>
+                            <th className="text-left py-3 px-4 font-medium text-gray-700">Status</th>
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
+                        </thead>
+                        <tbody>
+                          {testResults.map((result, i) => (
+                            <tr key={i} className="border-b border-gray-100">
+                              <td className="py-3 px-4 text-sm">
+                                {format(new Date(result.timestamp), 'MMM d, HH:mm')}
+                              </td>
+                              <td className="py-3 px-4 font-medium">{result.testType}</td>
+                              <td className="py-3 px-4">
+                                {result.value} {result.unit}
+                              </td>
+                              <td className="py-3 px-4">
+                                <span
+                                  className={`px-3 py-1 rounded-full text-xs font-medium ${
+                                    result.status === 'normal'
+                                      ? 'bg-green-100 text-green-800'
+                                      : 'bg-red-100 text-red-800'
+                                  }`}
+                                >
+                                  {result.status}
+                                </span>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           </div>
         )}
+
       </div>
     </>
   );
