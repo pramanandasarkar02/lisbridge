@@ -178,7 +178,8 @@ export default function DevicesDashboard() {
           {/* Header */}
           <div className="mb-8">
             <h1 className="text-3xl font-bold text-gray-900">LISBridge Dashboard</h1>
-            <p className="text-gray-600 mt-1">Manage your laboratory devices and test results</p>
+            <p className="text-gray-600 mt-1">Manage your laboratory devices and test results.</p>
+            <p className='text-red-400'>(If there have error when closing device details refresh it. it is client side err. short time to fix it :)</p>
           </div>
 
           {/* Message */}
